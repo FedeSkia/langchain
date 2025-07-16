@@ -147,4 +147,5 @@ def manual_process():
 
 
 if __name__ == '__main__':
+    #main()
     manual_process()
