@@ -1,7 +1,7 @@
-from langchain_ollama import OllamaLLM
+from langchain_ollama import OllamaLLM, ChatOllama
 from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from langchain.prompts import ChatPromptTemplate
-
+from pydantic import BaseModel, Field
 
 user_prompt_const = """You are tasked with creating a name for a article.
 The article is here for you to examine {article}
@@ -113,30 +113,73 @@ You can sign up for the [Aurelio AI newsletter](https://b0fcw9ec53w.typeform.com
 """
 
 
-def main():
+class Paragraph(BaseModel):
+    original_paragraph: str = Field(description="The original paragraph")
+    edited_paragraph: str = Field("The improved edited paragraph")
+    feedback: str = Field("Constructive feedback on the original paragraph")
+
+
+def structured_output_example():
+    """ In this way we tell to the LLM to reply using the format specified with the Paragraph class. In this way we
+    dont have to parse the LLM response"""
+
+    llm = ChatOllama(model="llama3.1:8b")
+
+    structured_llm = llm.with_structured_output(Paragraph)
+    print(structured_llm)
+
+    system_prompt_template = SystemMessagePromptTemplate.from_template(
+        "You are an AI assistant that helps generate article titles.")
+    user_prompt_template = HumanMessagePromptTemplate.from_template(
+        """You are tasked with creating a new paragraph for the
+    article. The article is here for you to examine:
+
+    ---
+
+    {article}
+
+    ---
+
+    Choose one paragraph to review and edit. During your edit
+    ensure you provide constructive feedback to the user so they
+    can learn where to improve their own writing.""",
+        input_variables=["article"]
+    )
+
+    prompt_template = ChatPromptTemplate.from_messages([system_prompt_template, user_prompt_template])
+    print("prompt_template:", prompt_template)
+
+    chain = prompt_template | structured_llm
+
+    print("Chain:", chain)
+    response = chain.invoke({"article": article_const})
+    print("Response is:", response)
+
+
+def chain_example():
     llm = OllamaLLM(model="tinyllama:1.1b")
     # Defining the system prompt (how the AI should act)
-    system_prompt_template = SystemMessagePromptTemplate.from_template("You are an AI assistant that helps generate article titles.")
+    system_prompt_template = SystemMessagePromptTemplate.from_template(
+        "You are an AI assistant that helps generate article titles.")
     user_prompt_template = HumanMessagePromptTemplate.from_template(user_prompt_const)
-
-    #This is a template because the placeholders are not assigned yet
+    # This is a template because the placeholders are not assigned yet
     prompt_template = ChatPromptTemplate.from_messages([system_prompt_template, user_prompt_template])
-
     chain = prompt_template | llm
     # We invoke the chain and we replace the prompt template assigning the {article} placeholder with the value
     response = chain.invoke({"article": article_const})
     print(response)
 
 
-# The same as main but without the "|" operator.
-def manual_process():
+# The same as chain_example but without the "|" operator.
+def manual_process_chain_explanation():
     # Step 1: prompt formatting
-    system_prompt_template = SystemMessagePromptTemplate.from_template("You are an AI assistant that helps generate article titles.")
+    system_prompt_template = SystemMessagePromptTemplate.from_template(
+        "You are an AI assistant that helps generate article titles.")
     user_prompt_template = HumanMessagePromptTemplate.from_template(user_prompt_const)
 
     prompt_template = ChatPromptTemplate.from_messages([system_prompt_template, user_prompt_template])
 
-    #Replace the {article} placeholder in user_prompt with article_const
+    # Replace the {article} placeholder in user_prompt with article_const
     formatted_prompt = prompt_template.format_messages(article=article_const)
     print("Formatted prompt", formatted_prompt)
     # Step 2: invoke l'LLM
@@ -147,5 +190,5 @@ def manual_process():
 
 
 if __name__ == '__main__':
-    #main()
-    manual_process()
+    # execute the method you want to play with...
+    structured_output_example()
