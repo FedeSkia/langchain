@@ -116,26 +116,28 @@ You can sign up for the [Aurelio AI newsletter](https://b0fcw9ec53w.typeform.com
 def main():
     llm = OllamaLLM(model="tinyllama:1.1b")
     # Defining the system prompt (how the AI should act)
-    system_prompt = SystemMessagePromptTemplate.from_template("You are an AI assistant that helps generate article titles.")
-    user_prompt = HumanMessagePromptTemplate.from_template(user_prompt_const)
+    system_prompt_template = SystemMessagePromptTemplate.from_template("You are an AI assistant that helps generate article titles.")
+    user_prompt_template = HumanMessagePromptTemplate.from_template(user_prompt_const)
 
-    first_prompt = ChatPromptTemplate.from_messages([system_prompt, user_prompt])
+    #This is a template because the placeholders are not assigned yet
+    prompt_template = ChatPromptTemplate.from_messages([system_prompt_template, user_prompt_template])
 
-    chain_one = first_prompt | llm
-    response = chain_one.invoke({"article": article_const})
+    chain = prompt_template | llm
+    # We invoke the chain and we replace the prompt template assigning the {article} placeholder with the value
+    response = chain.invoke({"article": article_const})
     print(response)
 
 
 # The same as main but without the "|" operator.
 def manual_process():
     # Step 1: prompt formatting
-    system_prompt = SystemMessagePromptTemplate.from_template("You are an AI assistant that helps generate article titles.")
-    user_prompt = HumanMessagePromptTemplate.from_template(user_prompt_const)
+    system_prompt_template = SystemMessagePromptTemplate.from_template("You are an AI assistant that helps generate article titles.")
+    user_prompt_template = HumanMessagePromptTemplate.from_template(user_prompt_const)
 
-    prompt = ChatPromptTemplate.from_messages([system_prompt, user_prompt])
+    prompt_template = ChatPromptTemplate.from_messages([system_prompt_template, user_prompt_template])
 
     #Replace the {article} placeholder in user_prompt with article_const
-    formatted_prompt = prompt.format_messages(article=article_const)
+    formatted_prompt = prompt_template.format_messages(article=article_const)
     print("Formatted prompt", formatted_prompt)
     # Step 2: invoke l'LLM
     llm = OllamaLLM(model="tinyllama:1.1b")
