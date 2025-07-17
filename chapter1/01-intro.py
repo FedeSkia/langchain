@@ -1,7 +1,15 @@
+import logging
+
 from langchain_ollama import OllamaLLM, ChatOllama
-from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain.prompts import ChatPromptTemplate
+from langchain.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, ChatPromptTemplate
 from pydantic import BaseModel, Field
+
+from skimage import io
+import matplotlib.pyplot as plt
+from langchain_core.runnables import RunnableLambda
+from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
+from diffusers import StableDiffusionPipeline
+import torch
 
 user_prompt_const = """You are tasked with creating a name for a article.
 The article is here for you to examine {article}
@@ -113,6 +121,30 @@ You can sign up for the [Aurelio AI newsletter](https://b0fcw9ec53w.typeform.com
 """
 
 
+def create_chain_for_image():
+    try:
+        pipe = StableDiffusionPipeline.from_pretrained(
+            "runwayml/stable-diffusion-v1-5",
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        ).to("cuda" if torch.cuda.is_available() else "cpu")
+
+        prompt = "create an image of a jack russel terrier dog"
+        image = pipe(prompt).images[0]
+
+        image.save("test_output.png")
+    except Exception as e:
+        logging.error("Exception: ", e)
+
+
+def generate_and_display_image(image_prompt):
+    image_url = DallEAPIWrapper().run(image_prompt)
+    image_data = io.imread(image_url)
+
+    plt.imshow(image_data)
+    plt.axis('off')
+    plt.show()
+
+
 class Paragraph(BaseModel):
     original_paragraph: str = Field(description="The original paragraph")
     edited_paragraph: str = Field("The improved edited paragraph")
@@ -191,4 +223,5 @@ def manual_process_chain_explanation():
 
 if __name__ == '__main__':
     # execute the method you want to play with...
-    structured_output_example()
+    # structured_output_example()
+    create_chain_for_image()
