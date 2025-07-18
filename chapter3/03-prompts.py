@@ -121,14 +121,14 @@ def few_shot_prompting():
         examples=examples,
     )
     print("Few shot prompt:", few_shot_prompt)
-    prompt_template: list[BaseMessage] = ChatPromptTemplate.from_messages([
+    messages: list[BaseMessage] = ChatPromptTemplate.from_messages([
         ("system", prompt),
         few_shot_prompt,
         ("user", "{query}"),
     ]).format_messages(query=query, context=context)
 
     llm = OllamaLLM(model="llama3.1:8b")
-    response: str = llm.invoke(prompt_template)
+    response: str = llm.invoke(messages)
     print(response)
 
 
