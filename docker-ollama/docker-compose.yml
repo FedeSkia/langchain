@@ -1,8 +1,7 @@
 services:
-  ollama-custom:
+  ollama:
     build: .
-    command: serve --verbose #useful to output logs for the incoming prompts
-    container_name: ollama-custom
+    container_name: ollama
     ports:
       - "11434:11434"
     volumes:
@@ -10,12 +9,35 @@ services:
     restart: unless-stopped
     environment:
       - OLLAMA_ORIGINS=*
+      - OLLAMA_DEBUG=1 #useful to output logs for the incoming prompts
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 10s
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - ollama-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+
+  ollama-proxy:
+    image: nginx:alpine
+    ports:
+      - "8080:8080"
+    volumes:
+    - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - ollama
+    networks:
+      - ollama-net
+
+networks:
+  ollama-net:
+    driver: bridge
 
 volumes:
   ollama-data:
