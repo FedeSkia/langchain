@@ -1,6 +1,7 @@
 services:
   ollama-custom:
     build: .
+    command: serve --verbose #useful to output logs for the incoming prompts
     container_name: ollama-custom
     ports:
       - "11434:11434"
