@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, List
 from langchain.memory import ConversationBufferWindowMemory
 from langchain_core.callbacks import StreamingStdOutCallbackHandler, BaseCallbackHandler
 from langchain_core.chat_history import InMemoryChatMessageHistory, BaseChatMessageHistory
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, MessagesPlaceholder, \
     HumanMessagePromptTemplate
 from langchain_core.runnables import RunnableWithMessageHistory, RunnableConfig, ConfigurableFieldSpec
@@ -133,6 +133,116 @@ def conversation_buffer_window_memory():
     print(response)
 
 
+class ConversationSummaryMessageHistory(BaseChatMessageHistory, BaseModel):
+    summary: str = Field(default_factory=str)
+    llm: OllamaLLM = Field(default_factory=OllamaLLM)
+    messages: list[BaseMessage] = Field(default_factory=list)
+
+    def add_messages(self, new_messages: list[BaseMessage]) -> None:
+        """Add messages to the history, removing any messages beyond
+        the last `k` messages.
+        """
+        # construct the summary chat messages
+        summary_prompt = ChatPromptTemplate.from_messages([
+            SystemMessagePromptTemplate.from_template(
+                "Given the existing conversation summary and the new messages, "
+                "generate a new summary of the conversation. Ensuring to maintain "
+                "as much relevant information as possible."
+            ),
+            HumanMessagePromptTemplate.from_template(
+                "Existing conversation summary:\n{existing_summary}\n\n"
+                "New messages:\n{new_messages}"
+            )
+        ])
+
+        # format the messages and invoke the LLM
+        new_summary = self.llm.invoke(
+            summary_prompt.format_messages(
+                existing_summary=self.summary,
+                new_messages=[x.content for x in new_messages]
+            )
+        )
+        # replace the existing history with a single system summary message
+        self.summary = new_summary
+        self.messages.extend(new_messages)
+
+    def clear(self) -> None:
+        """Clear the history."""
+        self.summary = ""
+        self.messages = []
+
+
+def conversation_summary_memory():
+    """ Next up we have `ConversationSummaryMemory`,
+     this memory type keeps track of a summary of the conversation rather than the entire conversation.
+     This is useful for long conversations where we don't need to keep track of the entire conversation,
+     but we do want to keep some thread of the full conversation.
+     """
+
+    def get_chat_history(session_id: str, llm: OllamaLLM) -> ConversationSummaryMessageHistory:
+        if session_id not in chat_map:
+            chat_map[session_id] = ConversationSummaryMessageHistory(llm=llm)
+        return chat_map[session_id]
+
+    llm = OllamaLLM(model="llama3.1:8b",
+                    base_url="http://localhost:8080")
+
+    prompt_template = ChatPromptTemplate.from_messages([
+        SystemMessagePromptTemplate.from_template("You are a helpful assistant called Zeta."),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{question}"),
+    ])
+    pipeline = prompt_template | llm
+
+    pipeline_with_history = RunnableWithMessageHistory(
+        pipeline,
+        get_session_history=get_chat_history,
+        input_messages_key="query",
+        history_messages_key="history",
+        history_factory_config=[
+            ConfigurableFieldSpec(
+                id="session_id",
+                annotation=str,
+                name="Session ID",
+                description="The session ID to use for the chat history",
+                default="id_default",
+            ),
+            ConfigurableFieldSpec(
+                id="llm",
+                annotation=OllamaLLM,
+                name="LLM",
+                description="The LLM to use for the conversation summary",
+                default=llm,
+            )
+        ]
+    )
+    config: RunnableConfig = {"configurable": {"session_id": "id_123", "llm": llm}}
+    response = pipeline_with_history.invoke(
+        input={"question": "Hi, my name is Fede"},
+        llm=llm,
+        config=config
+    )
+    history = chat_map["id_123"]
+    history.add_messages([HumanMessage(content="Hi, my name is Fede"), AIMessage(content=response)])
+    print("Summary generated:", chat_map["id_123"].summary)
+
+    for msg in [
+        "I have been looking at ConversationBufferMemory and ConversationBufferWindowMemory.",
+        "Buffer memory just stores the entire conversation",
+        "Buffer window memory stores the last k messages, dropping the rest."
+    ]:
+        pipeline_with_history.invoke(
+            input={"question": msg},
+            config=config
+        )
+        history = chat_map["id_123"]
+        history.add_messages([HumanMessage(content=msg), AIMessage(content=response)])
+        print("Summary generated: ", chat_map["id_123"].summary)
+
+    print("Summary generated: ", chat_map["id_123"].summary)
+
+
 if __name__ == '__main__':
     # memory_runnable_with_message_history()
-    conversation_buffer_window_memory()
+    # conversation_buffer_window_memory()
+    conversation_summary_memory()
