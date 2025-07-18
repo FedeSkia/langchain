@@ -1,53 +1,38 @@
-from IPython.core.display import Markdown
-from IPython.core.display_functions import display
 from langchain.prompts import ChatPromptTemplate
 from langchain_core.messages import BaseMessage
 from langchain_core.prompts import SystemMessagePromptTemplate, HumanMessagePromptTemplate, \
     FewShotChatMessagePromptTemplate
 from langchain_ollama import OllamaLLM
 
-prompt = """
-Answer the user's query based on the context below.
-If you cannot answer the question using the
-provided information answer with "I don't know".
-
-Context: {context}
-"""
-
-context = """Aurelio AI is an AI company developing tooling for AI
-engineers. Their focus is on language AI with the team having strong
-expertise in building AI agents and a strong background in
-information retrieval.
-
-The company is behind several open source frameworks, most notably
-Semantic Router and Semantic Chunkers. They also have an AI
-Platform providing engineers with tooling to help them build with
-AI. Finally, the team also provides development services to other
-organizations to help them bring their AI tech to market.
-
-Aurelio AI became LangChain Experts in September 2024 after a long
-track record of delivering AI solutions built with the LangChain
-ecosystem."""
-
-query = "what does Aurelio AI?"
-
-new_system_prompt = """
-Answer the user's query based on the context below.
-If you cannot answer the question using the
-provided information answer with "I don't know".
-
-Always answer in markdown format. When doing so please
-provide headers, short summaries, follow with bullet
-points, then conclude.
-
-Context: {context}
-"""
-
 
 def context_prompt():
+    prompt = """
+    Answer the user's query based on the context below.
+    If you cannot answer the question using the
+    provided information answer with "I don't know".
+
+    Context: {context}
+    """
+    context = """Aurelio AI is an AI company developing tooling for AI
+    engineers. Their focus is on language AI with the team having strong
+    expertise in building AI agents and a strong background in
+    information retrieval.
+
+    The company is behind several open source frameworks, most notably
+    Semantic Router and Semantic Chunkers. They also have an AI
+    Platform providing engineers with tooling to help them build with
+    AI. Finally, the team also provides development services to other
+    organizations to help them bring their AI tech to market.
+
+    Aurelio AI became LangChain Experts in September 2024 after a long
+    track record of delivering AI solutions built with the LangChain
+    ecosystem."""
+
+    query = "what does Aurelio AI?"
+
     # the prompt has a placeholder {context}. prompt is only known by the LLM
     system_message: SystemMessagePromptTemplate = SystemMessagePromptTemplate.from_template(prompt)
-    human_message: HumanMessagePromptTemplate = HumanMessagePromptTemplate.from_template('{query}')
+    human_message: HumanMessagePromptTemplate = HumanMessagePromptTemplate.from_template(query)
     prompt_template: ChatPromptTemplate = ChatPromptTemplate.from_messages([
         system_message,
         human_message
@@ -62,8 +47,35 @@ def context_prompt():
 
 
 def few_shot_prompting():
-    """We want to instruct the LLM on how to behave when a user asks a question.
-    In this case we specify that we want a bullet point answer well formatted"""
+    context = """Aurelio AI is an AI company developing tooling for AI
+    engineers. Their focus is on language AI with the team having strong
+    expertise in building AI agents and a strong background in
+    information retrieval.
+
+    The company is behind several open source frameworks, most notably
+    Semantic Router and Semantic Chunkers. They also have an AI
+    Platform providing engineers with tooling to help them build with
+    AI. Finally, the team also provides development services to other
+    organizations to help them bring their AI tech to market.
+
+    Aurelio AI became LangChain Experts in September 2024 after a long
+    track record of delivering AI solutions built with the LangChain
+    ecosystem."""
+
+    query = "what does Aurelio AI?"
+
+    prompt = """
+    Answer the user's query based on the context below.
+    If you cannot answer the question using the
+    provided information answer with "I don't know".
+
+    Always answer in markdown format. When doing so please
+    provide headers, short summaries, follow with bullet
+    points, then conclude.
+
+    Context: {context}
+    """
+    # We want to instruct the LLM on how to behave when a user asks a question. In this case we specify that we want a bullet point answer well formatted
     examples = [
         {
             "input": "Can you explain gravity?",
@@ -110,7 +122,7 @@ def few_shot_prompting():
     )
     print("Few shot prompt:", few_shot_prompt)
     prompt_template: list[BaseMessage] = ChatPromptTemplate.from_messages([
-        ("system", new_system_prompt),
+        ("system", prompt),
         few_shot_prompt,
         ("user", "{query}"),
     ]).format_messages(query=query, context=context)
@@ -120,5 +132,45 @@ def few_shot_prompting():
     print(response)
 
 
+def chain_of_thoughts():
+    """The chain of thoughts is generally enabled by default. But its good to specify it in the system prompt.
+    First lets make an example without using the chain of thoughts"""
+    no_chain_of_thought_system_prompt = """
+    Be a helpful assistant and answer the user's question.
+
+    You MUST answer the question directly without any other
+    text or explanation.
+    """
+
+    query = "How many keystrokes are needed to type the numbers from 1 to 500?"
+    no_chain_of_thought_prompt_template = ChatPromptTemplate.from_messages([
+        ("system", no_chain_of_thought_system_prompt),
+        ("user", "{query}"),
+    ]).format_messages(query=query)
+    llm = OllamaLLM(model="llama3.1:8b")
+    response_no_chain_of_thoughts = llm.invoke(no_chain_of_thought_prompt_template)
+    print("Response without chain of thoughts: ", response_no_chain_of_thoughts)
+
+    # Now lets use the chain of thoughts by changing the system_prompt
+    chain_of_thoughts_system_prompt = """
+        Be a helpful assistant and answer the user's question.
+        
+        To answer the question, you must:
+        
+        - List systematically and in precise detail all
+          subproblems that need to be solved to answer the
+          question.
+        - Solve each sub problem INDIVIDUALLY and in sequence.
+        - Finally, use everything you have worked through to
+          provide the final answer.
+        """
+    chain_of_thought_prompt_template = ChatPromptTemplate.from_messages([
+        ("system", chain_of_thoughts_system_prompt),
+        ("user", "{query}"),
+    ]).format_messages(query=query)
+    response_with_chain_of_thoughts = llm.invoke(chain_of_thought_prompt_template)
+    print("Response with chain of thoughts: ", response_with_chain_of_thoughts)
+
+
 if __name__ == '__main__':
-    few_shot_prompting()
+    chain_of_thoughts()
