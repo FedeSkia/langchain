@@ -1,6 +1,5 @@
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 
-from langchain.memory import ConversationBufferWindowMemory
 from langchain_core.callbacks import StreamingStdOutCallbackHandler, BaseCallbackHandler
 from langchain_core.chat_history import InMemoryChatMessageHistory, BaseChatMessageHistory
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
