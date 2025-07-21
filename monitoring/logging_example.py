@@ -5,6 +5,14 @@ from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs._internal.export import SimpleLogRecordProcessor
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor, ConsoleLogExporter
 from opentelemetry._logs import set_logger_provider, get_logger
+from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+
+# Service name is required for most backends
+resource = Resource.create(attributes={
+    SERVICE_NAME: "fede-llm",
+    "service.version": "1.0.0",
+    "deployment.environment": "development"
+})
 
 provider = LoggerProvider()
 console_processor = BatchLogRecordProcessor(ConsoleLogExporter())
