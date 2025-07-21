@@ -19,5 +19,6 @@ dependencies = [
     "transformers",
     "accelerate",
     "matplotlib",
-    "opentelemetry-sdk"
+    "opentelemetry-sdk",
+
 ]
