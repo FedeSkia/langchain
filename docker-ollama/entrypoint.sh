@@ -27,7 +27,8 @@ EXISTING_MODELS=$(curl -s http://localhost:11434/api/tags | grep -o '"name":"[^"
 MODELS=(
     "tinyllama:1.1b"
     "llama3.1:8b"
-    "mistral:7b"
+    "mistral:7b",
+    "qwen3:8b"
 )
 
 for model in "${MODELS[@]}"; do
