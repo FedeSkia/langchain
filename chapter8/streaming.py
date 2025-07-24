@@ -1,8 +1,10 @@
 import asyncio
 
 from langchain.callbacks.streaming_aiter_final_only import AsyncFinalIteratorCallbackHandler
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import BaseMessage, ToolMessage, HumanMessage, AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnableSerializable, Runnable
+from langchain_core.runnables import RunnableSerializable
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 
@@ -61,6 +63,73 @@ class QueueCallbackHandler(AsyncFinalIteratorCallbackHandler):
         return
 
 
+class CustomAgentExecutor:
+    chat_history: list[BaseMessage]
+
+    def __init__(self, prompt: ChatPromptTemplate, function_tools: [], llm: BaseChatModel, max_iterations: int = 3):
+        self.__functions_tools_available = {tool.name: tool.func for tool in function_tools}
+        self.chat_history = []
+        self.max_iterations = max_iterations
+        self.agent: RunnableSerializable = (
+                {
+                    "input": lambda x: x["input"],
+                    "chat_history": lambda x: x["chat_history"],
+                    "agent_scratchpad": lambda x: x.get("agent_scratchpad", [])
+                }
+                | prompt
+                | llm.bind_tools(function_tools, tool_choice="any")  # we're forcing tool use again
+        )
+
+    async def invoke(self, user_query: str, streamer: QueueCallbackHandler) -> dict:
+        # invoke the agent but we do this iteratively in a loop until
+        # reaching a final answer
+        count = 0
+        agent_scratchpad = []
+        while count < self.max_iterations:
+            tool_call = await self.stream(query=user_query, streamer_callback=streamer,
+                                          agent_scratchpad=agent_scratchpad)
+            agent_scratchpad.append(tool_call)
+            tool_name = tool_call.tool_calls[0]["name"]
+            tool_args = tool_call.tool_calls[0]["args"]
+            tool_call_id = tool_call.tool_call_id
+            tool_out = {tool.name: tool.func for tool in tools}[tool_name](**tool_args)
+            tool_exec = ToolMessage(
+                content=f"{tool_out}",
+                tool_call_id=tool_call_id
+            )
+            count += 1
+            agent_scratchpad.append(tool_exec)
+            if tool_name == "final_answer":
+                break
+
+        final_answer = tool_out["answer"]
+        self.chat_history.extend([
+            HumanMessage(content=user_query),
+            AIMessage(content=final_answer)
+        ])
+        # return the final answer in dict form
+        return tool_args
+
+    async def stream(self, query: str, streamer_callback: QueueCallbackHandler, agent_scratchpad: []) -> AIMessage:
+        response = self.agent.with_config(callbacks=[streamer_callback])
+
+        output = None
+        async for token in response.astream({
+            "input": query,
+            "chat_history": self.chat_history,
+            "agent_scratchpad": agent_scratchpad
+        }):
+            if output is None:
+                output = token
+            else:
+                output += token
+        return AIMessage(
+            content=output.content,
+            tool_calls=output.tool_calls,
+            tool_call_id=output.tool_calls[0]["id"]
+        )
+
+
 queue = asyncio.Queue()
 streamer: QueueCallbackHandler = QueueCallbackHandler(queue)
 prompt = ChatPromptTemplate.from_messages([
@@ -114,25 +183,17 @@ def final_answer(answer: str, tools_used: list[str]) -> str:
 
 tools = [final_answer, add, subtract, multiply, exponentiate]
 
-agent: RunnableSerializable = (
-        {
-            "input": lambda x: x["input"],
-            "chat_history": lambda x: x["chat_history"],
-            "agent_scratchpad": lambda x: x.get("agent_scratchpad", [])
-        }
-        | prompt
-        | llm.bind_tools(tools, tool_choice="any")  # we're forcing tool use again
-)
+agent_executor = CustomAgentExecutor(prompt=prompt, function_tools=tools, llm=llm)
 
 
-async def stream(query: str):
-    response: Runnable = agent.with_config(callbacks=[AsyncCustomCallbackHandler()])
-    async for token in response.astream({
-        "input": query,
-        "chat_history": [],
-        "agent_scratchpad": []
-    }):
-        print(token, flush=True)
+async def consume():
+    async for token in streamer:
+        print(token.text, flush=True)
 
 
-asyncio.run(stream("What is 10+10?"))
+async def main():
+    task = asyncio.create_task(agent_executor.invoke(user_query="What is 10+10?", streamer=streamer))
+    await asyncio.gather(task, consume())
+
+
+asyncio.run(main())
