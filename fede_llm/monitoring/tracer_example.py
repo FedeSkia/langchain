@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 # Service name is required for most backends
 resource = Resource.create(attributes={
-    SERVICE_NAME: "fede-llm",
+    SERVICE_NAME: "fede_llm",
     "service.version": "1.0.0",
     "deployment.environment": "development"
 })
@@ -23,7 +23,7 @@ def configure_tracer():
 
 
 configure_tracer()
-tracer = trace.get_tracer("fede-llm-tracer")
+tracer = trace.get_tracer("fede_llm-tracer")
 with tracer.start_as_current_span("span-name") as span:
     # do some work that 'span' will track
     span_context = span.get_span_context()

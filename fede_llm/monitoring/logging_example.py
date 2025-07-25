@@ -9,7 +9,7 @@ from opentelemetry.sdk.resources import Resource, SERVICE_NAME
 
 # Service name is required for most backends
 resource = Resource.create(attributes={
-    SERVICE_NAME: "fede-llm",
+    SERVICE_NAME: "fede_llm",
     "service.version": "1.0.0",
     "deployment.environment": "development"
 })

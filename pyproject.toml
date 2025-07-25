@@ -2,6 +2,15 @@
 name = "fede-llm"
 version = "0.1.0"
 readme = "README.md"
+requires-python = ">=3.10"
+
+[project.scripts]
+fede-llm = "fede_llm.capstone.api.main:main"
+
+[virtualenvs]
+in-project = true
+packages = [ {include = "fede_llm"} ]
+
 dependencies = [
     "ipykernel",
     "langchain",
@@ -20,5 +29,9 @@ dependencies = [
     "accelerate",
     "matplotlib",
     "opentelemetry-sdk",
-
+    "python-dotenv",
+    "fastapi"
 ]
+
+[tool.poetry.dependencies]
+fastapi = "^0.116.1"
