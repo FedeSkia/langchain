@@ -28,7 +28,8 @@ MODELS=(
     "tinyllama:1.1b"
     "llama3.1:8b"
     "mistral:7b",
-    "qwen3:8b"
+    "qwen3:8b",
+    "deepseek-r1:8b"
 )
 
 for model in "${MODELS[@]}"; do
