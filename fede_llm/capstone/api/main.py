@@ -1,9 +1,13 @@
 import asyncio
+from asyncio import Task
+from typing import AsyncGenerator
 
-from agent import QueueCallbackHandler, agent_executor
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+
+from fede_llm.capstone.api.ToolsUsedCallbackHandler import ToolsUsedCallbackHandler
+from fede_llm.capstone.api.agent import enabled_functions, prompt, chatModel, CustomAgentExecutor
 
 if __name__ == '__main__':
     # initilizing our application
@@ -18,23 +22,22 @@ if __name__ == '__main__':
     )
 
 
-    async def token_generator(content: str, streamer: QueueCallbackHandler):
-        task = asyncio.create_task(agent_executor.invoke(
-            input=content,
-            streamer=streamer,
-            verbose=True  # set to True to see verbose output in console
-        ))
+    async def token_generator(content: str, result_callback: ToolsUsedCallbackHandler):
+        agent = CustomAgentExecutor(prompt, enabled_functions, chatModel, result_callback)
+
+        task: Task = asyncio.create_task(agent.async_invoke(content))
         # initialize various components to stream
-        async for token in streamer:
+        # await asyncio.gather(task, consumer(result_callback=result_callback))
+        async for token in result_callback:
             try:
                 if token == "<<STEP_END>>":
                     # send end of step token
                     yield "</step>"
-                elif tool_calls := token.message.additional_kwargs.get("tool_calls"):
-                    if tool_name := tool_calls[0]["function"]["name"]:
+                elif tool_calls := token.message.tool_calls:
+                    if tool_name := tool_calls[0]["name"]:
                         # send start of step token followed by step name tokens
                         yield f"<step><step_name>{tool_name}</step_name>"
-                    if tool_args := tool_calls[0]["function"]["arguments"]:
+                    if tool_args := tool_calls[0]["args"]:
                         # tool args are streamed directly, ensure it's properly encoded
                         yield tool_args
             except Exception as e:
@@ -43,14 +46,11 @@ if __name__ == '__main__':
         await task
 
 
-    # invoke function
     @app.post("/invoke")
     async def invoke(content: str):
-        queue: asyncio.Queue = asyncio.Queue()
-        streamer = QueueCallbackHandler(queue)
-        # return the streaming response
+        callback = ToolsUsedCallbackHandler()
         return StreamingResponse(
-            token_generator(content, streamer),
+            token_generator(content, callback),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -60,5 +60,4 @@ if __name__ == '__main__':
 
 
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
