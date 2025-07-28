@@ -15,14 +15,14 @@ class ToolsUsedCallbackHandler(AsyncCallbackHandler):
 
     def terminate(self):
         self.queue.put_nowait("<<DONE>>")
-        return self.__anext__()
 
     async def __anext__(self):
-        token_or_done = await self.queue.get()
-        if token_or_done == "<<DONE>>":
-            raise StopAsyncIteration
-        if token_or_done:
-            return token_or_done
+        while True:
+            token_or_done = await self.queue.get()
+            if token_or_done == "<<DONE>>":
+                raise StopAsyncIteration
+            if token_or_done:
+                return token_or_done
 
     async def on_llm_new_token(self, *args, **kwargs) -> None:
         chunk = kwargs.get("chunk")
